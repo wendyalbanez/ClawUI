@@ -2,7 +2,7 @@ import { app } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { generateKeyPairSync, createHash, createPublicKey, createPrivateKey, sign } from 'crypto'
-import type { GatewayConfig } from './types'
+import type { GatewayConfig, GatewayMode } from './types'
 import { createLogger } from '../../shared/logger'
 
 const log = createLogger('GatewayConfig')
@@ -54,11 +54,49 @@ export function saveConfig(partial: { gatewayUrl: string; token: string }): void
     const config: GatewayConfig = {
         gatewayUrl: partial.gatewayUrl,
         token: partial.token,
-        deviceId: existing?.deviceId ?? deriveDeviceId(loadOrCreateKeyPair().publicKeyPem)
+        deviceId: existing?.deviceId ?? deriveDeviceId(loadOrCreateKeyPair().publicKeyPem),
+        mode: existing?.mode,
+        builtinToken: existing?.builtinToken,
+        builtinPort: existing?.builtinPort,
     }
     const configPath = getConfigPath()
     writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
     log.log('saveConfig: saved to %s', configPath)
+}
+
+export function saveGatewayMode(mode: GatewayMode): void {
+    log.log('saveGatewayMode: mode=%s', mode)
+    const existing = loadConfig()
+    const config: GatewayConfig = {
+        gatewayUrl: existing?.gatewayUrl ?? '',
+        token: existing?.token ?? '',
+        deviceId: existing?.deviceId ?? deriveDeviceId(loadOrCreateKeyPair().publicKeyPem),
+        mode,
+        builtinToken: existing?.builtinToken,
+        builtinPort: existing?.builtinPort,
+    }
+    const configPath = getConfigPath()
+    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+}
+
+export function saveBuiltinConfig(builtinPort: number, builtinToken: string): void {
+    log.log('saveBuiltinConfig: port=%d', builtinPort)
+    const existing = loadConfig()
+    const config: GatewayConfig = {
+        gatewayUrl: existing?.gatewayUrl ?? '',
+        token: existing?.token ?? '',
+        deviceId: existing?.deviceId ?? deriveDeviceId(loadOrCreateKeyPair().publicKeyPem),
+        mode: existing?.mode ?? 'builtin',
+        builtinToken,
+        builtinPort,
+    }
+    const configPath = getConfigPath()
+    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+}
+
+export function getGatewayMode(): GatewayMode {
+    const config = loadConfig()
+    return config?.mode ?? 'builtin'
 }
 
 // ── Key pair management ──
