@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipc-channels'
-import { loadConfig, saveConfig } from '../gateway/config'
+import { loadConfig, saveConfig, getGatewayMode } from '../gateway/config'
 import { GatewayClient } from '../gateway/client'
 import { GatewayRequestError } from '../gateway/errors'
 import { formatConnectError } from '../gateway/connect-error'
@@ -95,7 +95,7 @@ export function registerGatewayHandlers(): void {
          return null
       }
       log.log('loadConfig: url=%s', config.gatewayUrl)
-      return { gatewayUrl: config.gatewayUrl, token: config.token }
+      return { gatewayUrl: config.gatewayUrl, token: config.token, mode: config.mode }
    })
 
    // 保存配置
@@ -222,4 +222,58 @@ export function registerGatewayHandlers(): void {
    })
 
    log.log('Gateway IPC handlers registered')
+}
+
+// ── 供内置 Gateway 模式使用的连接/断开辅助函数 ──
+
+export function connectToUrl(url: string, token: string): void {
+   log.log('connectToUrl: %s', url)
+   const existing = _getClient()
+   if (existing) {
+      existing.stop()
+   }
+
+   const client = new GatewayClient({
+      url,
+      token,
+      onHello: (hello) => {
+         log.log('onHello → renderer: %s', summarizeValue(hello))
+         _sendToRenderer(IPC.GATEWAY_EVENT, { event: 'hello-ok', payload: hello })
+      },
+      onEvent: (evt) => {
+         log.log('onEvent → renderer: event=%s, payload=%s', evt.event, summarizeValue(evt.payload))
+         _sendToRenderer(IPC.GATEWAY_EVENT, {
+            event: evt.event,
+            payload: evt.payload,
+            seq: evt.seq,
+            stateVersion: evt.stateVersion,
+         })
+      },
+      onClose: ({ code, reason, error }) => {
+         log.log('onClose: code=%d, reason=%s, hasError=%s', code, reason, !!error)
+         _sendToRenderer(IPC.GATEWAY_EVENT, {
+            event: 'connection-error',
+            payload: { code, reason, error, formattedMessage: formatConnectError(error) },
+         })
+      },
+      onGap: (gap) => {
+         log.warn('onGap: expected=%d, received=%d', gap.expected, gap.received)
+         _sendToRenderer(IPC.GATEWAY_EVENT, { event: 'event-gap', payload: gap })
+      },
+      onStateChanged: (state) => {
+         log.log('onStateChanged: %s', state)
+         _sendToRenderer(IPC.GATEWAY_STATE_CHANGED, state)
+      },
+   })
+   _setClient(client)
+   client.start()
+}
+
+export function disconnectCurrent(): void {
+   log.log('disconnectCurrent called')
+   const client = _getClient()
+   if (client) {
+      client.stop()
+      _setClient(null)
+   }
 }
