@@ -14,6 +14,8 @@ export {
    type GatewayConfig,
    type SaveConfigParams,
    type GatewayStatusResult,
+   type GatewayMode,
+   type GatewayProcessStatus,
 } from '../../shared/types/gateway-protocol'
 
 export { GatewayRequestError } from './errors'

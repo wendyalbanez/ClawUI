@@ -1252,12 +1252,21 @@ export interface ModelCatalogEntry {
    reasoning?: boolean
 }
 
+// ── Gateway 模式 ──
+
+export type GatewayMode = 'builtin' | 'external'
+
+export type GatewayProcessStatus = 'idle' | 'starting' | 'running' | 'stopping' | 'crashed'
+
 // ── 配置持久化类型 ──
 
 export interface GatewayConfig {
    gatewayUrl: string
    token: string
    deviceId?: string
+   mode?: GatewayMode
+   builtinToken?: string
+   builtinPort?: number
 }
 
 export interface SaveConfigParams {
