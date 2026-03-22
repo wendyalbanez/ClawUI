@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'child_process'
 import { join } from 'path'
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { randomBytes } from 'crypto'
 import * as net from 'net'
 import { app } from 'electron'
@@ -170,22 +170,45 @@ export class GatewayProcessManager {
    private _spawn(): Promise<void> {
       return new Promise<void>((resolve, reject) => {
          const electronExe = process.execPath
+         // 使用独立的 state/config 目录，避免和用户本地 OpenClaw 配置冲突
+         const builtinStateDir = join(app.getPath('userData'), 'openclaw-builtin')
+         const builtinConfigPath = join(builtinStateDir, 'openclaw.json')
          const env: Record<string, string> = {
-            ...process.env as Record<string, string>,
+            ...(process.env as Record<string, string>),
             ELECTRON_RUN_AS_NODE: '1',
             OPENCLAW_GATEWAY_PORT: String(this._port),
             OPENCLAW_GATEWAY_AUTH_MODE: 'token',
             OPENCLAW_GATEWAY_AUTH_TOKEN: this._token,
             OPENCLAW_NO_RESPAWN: '1',
+            OPENCLAW_STATE_DIR: builtinStateDir,
+            OPENCLAW_CONFIG_PATH: builtinConfigPath,
          }
+
+         // 确保内置实例的 state 目录和配置文件存在（预写 token 避免 Gateway 自动生成）
+         if (!existsSync(builtinStateDir)) {
+            mkdirSync(builtinStateDir, { recursive: true })
+         }
+         const builtinConfig = {
+            gateway: {
+               auth: {
+                  mode: 'token',
+                  token: this._token,
+               },
+            },
+         }
+         writeFileSync(builtinConfigPath, JSON.stringify(builtinConfig, null, 2))
 
          log.log('Spawning: %s %s (port=%d)', electronExe, this._openclawPath, this._port)
 
-         const child = spawn(electronExe, [this._openclawPath, 'gateway', 'run'], {
-            env,
-            stdio: ['ignore', 'pipe', 'pipe'],
-            detached: false,
-         })
+         const child = spawn(
+            electronExe,
+            [this._openclawPath, 'gateway', 'run', '--allow-unconfigured'],
+            {
+               env,
+               stdio: ['ignore', 'pipe', 'pipe'],
+               detached: false,
+            },
+         )
 
          this._process = child
 

@@ -10,6 +10,13 @@ const config: Configuration = {
   files: [
     'dist/**/*'
   ],
+  extraResources: [
+    {
+      from: 'resources/openclaw',
+      to: 'openclaw',
+      filter: ['**/*']
+    }
+  ],
   mac: {
     target: [
       {
