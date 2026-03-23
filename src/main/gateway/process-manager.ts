@@ -5,7 +5,7 @@ import { homedir } from 'os'
 import { randomBytes } from 'crypto'
 import { app } from 'electron'
 import type { GatewayProcessStatus } from './types'
-import { saveBuiltinConfig } from './config'
+import { saveBuiltinConfig, loadConfig } from './config'
 import { getDataDir } from '../paths'
 import { createLogger } from '../../shared/logger'
 
@@ -121,7 +121,7 @@ export class GatewayProcessManager {
 
       try {
          this._port = BUILTIN_PORT
-         this._token = this._token || generateToken()
+         this._token = this._token || loadConfig()?.builtinToken || generateToken()
          log.log('Starting on port %d', this._port)
 
          await this._spawn()
@@ -215,12 +215,18 @@ export class GatewayProcessManager {
                config = {}
             }
          }
-         // 仅更新 gateway.auth 部分，保留其余配置（model provider、workspace 等）
+         // 仅更新 gateway.auth 和 reload 部分，保留其余配置（model provider、workspace 等）
          const gw =
             typeof config.gateway === 'object' && config.gateway !== null
                ? (config.gateway as Record<string, unknown>)
                : {}
          gw.auth = { mode: 'token', token: this._token }
+         // 禁用内置 Gateway 的配置文件热重载。
+         // OpenClaw 的 config-reload 会监控 openclaw.json 变更并触发进程内重启，
+         // 但引导向导运行中会多次写入配置（writeConfigFile），导致 Gateway 在向导完成前重启，
+         // 丢失所有内存状态（包括 wizard session）。
+         // 内置模式下 Gateway 生命周期由 ClawUI ProcessManager 管理，无需文件监控。
+         gw.reload = { mode: 'off' }
          config.gateway = gw
          writeFileSync(configPath, JSON.stringify(config, null, 2))
 

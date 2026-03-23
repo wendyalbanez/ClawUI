@@ -14,19 +14,29 @@ interface Props {
 }
 
 export default function WizardRpcStep({ onDone, onSkip }: Props) {
-   const { currentStep, done, loading, error, startWizard, answerStep, cancelWizard } =
-      useWizardRpc()
+   const {
+      currentStep,
+      done,
+      endStatus,
+      endError,
+      loading,
+      error,
+      autoAnswering,
+      startWizard,
+      answerStep,
+      cancelWizard,
+   } = useWizardRpc()
 
    useEffect(() => {
       startWizard()
    }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
    useEffect(() => {
-      if (done) {
-         log.log('Wizard done')
+      if (done && endStatus === 'done') {
+         log.log('Wizard completed successfully')
          onDone()
       }
-   }, [done, onDone])
+   }, [done, endStatus, onDone])
 
    const handleAnswer = useCallback(
       (stepId: string, value: unknown) => {
@@ -45,14 +55,45 @@ export default function WizardRpcStep({ onDone, onSkip }: Props) {
       startWizard()
    }, [startWizard])
 
-   // 初始加载状态
+   // 初始加载或自动配置中
    if (!currentStep && !error && !done) {
       return (
          <div style={{ textAlign: 'center', paddingTop: 48 }}>
             <Spin size="large" />
             <Paragraph type="secondary" style={{ marginTop: 16 }}>
-               正在初始化配置向导...
+               {autoAnswering ? '正在自动配置...' : '正在初始化配置向导...'}
             </Paragraph>
+         </div>
+      )
+   }
+
+   // wizard 异常终止（error 或 cancelled）
+   if (done && endStatus && endStatus !== 'done') {
+      return (
+         <div>
+            <Title level={3} style={{ marginBottom: 8 }}>
+               配置向导
+            </Title>
+            <Alert
+               type={endStatus === 'cancelled' ? 'warning' : 'error'}
+               message={endStatus === 'cancelled' ? '配置向导已取消' : '配置向导异常终止'}
+               description={endError ?? '向导未能正常完成，配置可能未保存。'}
+               style={{ marginBottom: 24 }}
+            />
+            <Space>
+               <Button type="primary" onClick={handleRetry}>
+                  重新配置
+               </Button>
+               <Popconfirm
+                  title="跳过配置向导？"
+                  description="你可以稍后在设置页面中手动配置。"
+                  onConfirm={onSkip}
+                  okText="跳过"
+                  cancelText="取消"
+               >
+                  <Button>跳过配置</Button>
+               </Popconfirm>
+            </Space>
          </div>
       )
    }

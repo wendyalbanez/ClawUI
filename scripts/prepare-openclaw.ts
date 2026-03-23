@@ -38,6 +38,41 @@ const EXTERNAL_PACKAGES = [
 ]
 
 /**
+ * 修正 tsdown 构建产物中的 __require 调用。
+ *
+ * tsdown 的 CJS 互操作会生成 `__require("express")` 之类的调用，
+ * 其中 `__require` 是 tsdown 自己的 CJS shim（非标准 `require`）。
+ * esbuild 无法识别 `__require` 为可打包的 require 调用，会原样保留。
+ * 打包后 node_modules 被删除，运行时这些 `__require` 调用就会失败。
+ *
+ * 此插件在 esbuild 加载源文件时，将 `__require(` 替换为 `require(`，
+ * 使 esbuild 能正确识别并内联这些依赖。Node.js 内置模块不受影响，
+ * esbuild 会将它们标记为 external，运行时通过 banner 注入的 createRequire 解析。
+ */
+function createTsdownRequireFixPlugin(distDir: string): Plugin {
+   return {
+      name: 'fix-tsdown-require',
+      setup(b) {
+         b.onLoad({ filter: /\.js$/ }, async (args) => {
+            // 仅处理 dist 目录下的文件（tsdown 产物）
+            if (!args.path.startsWith(distDir)) return null
+
+            const source = readFileSync(args.path, 'utf-8')
+            if (!source.includes('__require(')) return null
+
+            // 将 __require( 替换为 require(，让 esbuild 识别为标准 require 调用
+            // 同时移除 __require 的定义行，避免在输出中产生冗余的 createRequire 调用
+            const fixed = source
+               .replace(/\bvar __require\b.+?createRequire.+?;\n?/g, '')
+               .replace(/\b__require\(/g, 'require(')
+
+            return { contents: fixed, loader: 'js' }
+         })
+      },
+   }
+}
+
+/**
  * 修正 exports map 不兼容的深层导入。
  * OpenClaw dist 中有 `import fileType from "file-type/core.js"` 这样的导入，
  * 但 file-type 的 exports map 只定义了 `./core`（不带 .js），
@@ -121,7 +156,10 @@ async function bundleOpenClaw(targetDir: string): Promise<void> {
       splitting: true,
       outdir: bundledDir,
       external: EXTERNAL_PACKAGES,
-      plugins: [createExportsFixPlugin(join(targetDir, 'node_modules'))],
+      plugins: [
+         createTsdownRequireFixPlugin(distDir),
+         createExportsFixPlugin(join(targetDir, 'node_modules')),
+      ],
       // 注入 createRequire，让 esbuild 打包的 CJS 模块能正常 require Node.js 内置模块
       banner: {
          js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);",
@@ -226,6 +264,23 @@ async function main() {
          cwd: targetDir,
          stdio: 'inherit',
       })
+
+      // npm install 可能安装了与 OpenClaw 构建时不同版本的包（如私有/本地包），
+      // 用 OpenClaw 源码的 node_modules 覆盖这些不匹配的包以确保 esbuild 能正确解析。
+      // @mariozechner/* 系列包是协同版本的生态（pi-tui / pi-coding-agent 等），
+      // npm 上的版本可能落后于 OpenClaw 实际使用的版本，必须整体覆盖。
+      const srcNodeModules = join(openclawDir, 'node_modules')
+      const dstNodeModules = join(targetDir, 'node_modules')
+      const overrideScopes = ['@mariozechner']
+      for (const scope of overrideScopes) {
+         const srcScope = join(srcNodeModules, scope)
+         const dstScope = join(dstNodeModules, scope)
+         if (existsSync(srcScope)) {
+            console.log(`[prepare-openclaw] Overriding ${scope}/* from OpenClaw source node_modules`)
+            if (existsSync(dstScope)) rmSync(dstScope, { recursive: true })
+            cpSync(srcScope, dstScope, { recursive: true })
+         }
+      }
 
       // 清理安装后的不必要文件
       const lockGenerated = join(targetDir, 'package-lock.json')

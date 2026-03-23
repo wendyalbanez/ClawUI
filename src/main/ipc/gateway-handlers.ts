@@ -7,6 +7,7 @@ import { formatConnectError } from '../gateway/connect-error'
 import { ConnectionState } from '../../shared/types/gateway-protocol'
 import type { SaveConfigParams } from '../../shared/types/gateway-protocol'
 import { createLogger, summarizeValue } from '../../shared/logger'
+import { cleanupOpenClawLaunchAgent } from '../gateway/cleanup-launch-agent'
 
 const log = createLogger('IPC-Gateway')
 
@@ -231,6 +232,8 @@ export function registerGatewayHandlers(): void {
       log.log('markOnboardingCompleted requested')
       try {
          markOnboardingCompleted()
+         // 清理向导可能安装的 macOS LaunchAgent（内置模式不需要）
+         cleanupOpenClawLaunchAgent()
          return { success: true }
       } catch (err) {
          log.error('markOnboardingCompleted error:', err)

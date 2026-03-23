@@ -16,6 +16,18 @@ const processManager = new GatewayProcessManager()
 
 log.log('Initializing main process...')
 
+// 安全地向渲染进程发送 IPC 消息
+// dev 模式下主进程热重载或窗口关闭时，渲染帧可能已被销毁
+function safeSendToRenderer(channel: string, data: unknown): void {
+   try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+         mainWindow.webContents.send(channel, data)
+      }
+   } catch {
+      // 渲染帧已销毁（如 HMR 页面重载期间），静默忽略
+   }
+}
+
 // 设置 gateway client 访问器供 IPC handlers 使用
 setClientAccessor(
    () => gatewayClient,
@@ -26,7 +38,7 @@ setClientAccessor(
    },
    (channel, data) => {
       log.debug('sendToRenderer:', channel)
-      mainWindow?.webContents.send(channel, data)
+      safeSendToRenderer(channel, data)
    },
 )
 
@@ -34,7 +46,7 @@ setClientAccessor(
 setBuiltinGatewayAccessor(
    processManager,
    (channel, data) => {
-      mainWindow?.webContents.send(channel, data)
+      safeSendToRenderer(channel, data)
    },
    (port, token) => {
       connectToUrl(`ws://127.0.0.1:${port}`, token)
