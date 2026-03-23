@@ -20,6 +20,9 @@ export const IPC = {
    GATEWAY_BUILTIN_RESTART: 'gateway:builtin-restart',
    GATEWAY_CHECK_BUNDLED: 'gateway:check-bundled',
 
+   // Onboarding (invoke/handle)
+   GATEWAY_MARK_ONBOARDING_COMPLETE: 'gateway:mark-onboarding-complete',
+
    // 语音转写 (invoke/handle)
    SPEECH_TRANSCRIBE: 'speech:transcribe',
 

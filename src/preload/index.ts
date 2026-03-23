@@ -20,6 +20,7 @@ const IPC = {
    GATEWAY_BUILTIN_RESTART: 'gateway:builtin-restart',
    GATEWAY_CHECK_BUNDLED: 'gateway:check-bundled',
    GATEWAY_BUILTIN_STATUS_CHANGED: 'gateway:builtin-status-changed',
+   GATEWAY_MARK_ONBOARDING_COMPLETE: 'gateway:mark-onboarding-complete',
    APP_GET_INFO: 'app:get-info',
    SPEECH_TRANSCRIBE: 'speech:transcribe',
 } as const
@@ -51,6 +52,8 @@ contextBridge.exposeInMainWorld('clawAPI', {
          return ipcRenderer.invoke(IPC.GATEWAY_LOAD_CONFIG) as Promise<{
             gatewayUrl: string
             token: string
+            mode?: string
+            onboardingCompleted?: boolean
          } | null>
       },
       saveConfig: (config: { gatewayUrl: string; token: string }) => {
@@ -161,6 +164,14 @@ contextBridge.exposeInMainWorld('clawAPI', {
             log.log('builtin gateway status changed:', status)
             callback(status)
          })
+      },
+
+      // Onboarding
+      markOnboardingCompleted: () => {
+         log.log('gateway.markOnboardingCompleted() called')
+         return ipcRenderer.invoke(
+            IPC.GATEWAY_MARK_ONBOARDING_COMPLETE,
+         ) as Promise<{ success: boolean; error?: string }>
       },
    },
 

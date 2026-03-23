@@ -12,7 +12,12 @@ export interface ClawAPI {
       }>
    }
    gateway: {
-      loadConfig(): Promise<{ gatewayUrl: string; token: string; mode?: GatewayMode } | null>
+      loadConfig(): Promise<{
+         gatewayUrl: string
+         token: string
+         mode?: GatewayMode
+         onboardingCompleted?: boolean
+      } | null>
       saveConfig(config: {
          gatewayUrl: string
          token: string
@@ -41,6 +46,9 @@ export interface ClawAPI {
       stopBuiltin(): Promise<void>
       restartBuiltin(): Promise<{ success: boolean; error?: string }>
       onBuiltinStatusChanged(callback: (status: GatewayProcessStatus) => void): void
+
+      // Onboarding
+      markOnboardingCompleted(): Promise<{ success: boolean; error?: string }>
    }
    speech: {
       transcribe(

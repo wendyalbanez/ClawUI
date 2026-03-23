@@ -67,6 +67,7 @@ export function GatewayProvider(props: { children: React.ReactNode }) {
 
          // 推送到全局事件日志 store
          if (evt.event) {
+            log.log('Event received: %s', evt.event)
             pushEventLogEntry({
                ts: Date.now(),
                event: evt.event,
@@ -96,8 +97,8 @@ export function GatewayProvider(props: { children: React.ReactNode }) {
 
          // 分发给具体事件的订阅者
          const handlers = listenersRef.current.get(evt.event)
-         if (handlers) {
-            log.debug(
+         if (handlers && handlers.size > 0) {
+            log.log(
                'Dispatching event %s to %d handler(s)',
                evt.event,
                handlers.size,

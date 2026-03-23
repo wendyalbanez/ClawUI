@@ -1267,6 +1267,7 @@ export interface GatewayConfig {
    mode?: GatewayMode
    builtinToken?: string
    builtinPort?: number
+   onboardingCompleted?: boolean
 }
 
 export interface SaveConfigParams {

@@ -1,8 +1,8 @@
-import { app } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { generateKeyPairSync, createHash, createPublicKey, createPrivateKey, sign } from 'crypto'
 import type { GatewayConfig, GatewayMode } from './types'
+import { getDataDir } from '../paths'
 import { createLogger } from '../../shared/logger'
 
 const log = createLogger('GatewayConfig')
@@ -23,11 +23,11 @@ function base64UrlEncode(buf: Buffer): string {
 }
 
 function getConfigPath(): string {
-    return join(app.getPath('userData'), CONFIG_FILE)
+    return join(getDataDir(), CONFIG_FILE)
 }
 
 function getKeyPath(): string {
-    return join(app.getPath('userData'), KEY_FILE)
+    return join(getDataDir(), KEY_FILE)
 }
 
 export function loadConfig(): GatewayConfig | null {
@@ -58,6 +58,7 @@ export function saveConfig(partial: { gatewayUrl: string; token: string }): void
         mode: existing?.mode,
         builtinToken: existing?.builtinToken,
         builtinPort: existing?.builtinPort,
+        onboardingCompleted: existing?.onboardingCompleted,
     }
     const configPath = getConfigPath()
     writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
@@ -74,6 +75,7 @@ export function saveGatewayMode(mode: GatewayMode): void {
         mode,
         builtinToken: existing?.builtinToken,
         builtinPort: existing?.builtinPort,
+        onboardingCompleted: existing?.onboardingCompleted,
     }
     const configPath = getConfigPath()
     writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
@@ -89,6 +91,7 @@ export function saveBuiltinConfig(builtinPort: number, builtinToken: string): vo
         mode: existing?.mode ?? 'builtin',
         builtinToken,
         builtinPort,
+        onboardingCompleted: existing?.onboardingCompleted,
     }
     const configPath = getConfigPath()
     writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
@@ -97,6 +100,23 @@ export function saveBuiltinConfig(builtinPort: number, builtinToken: string): vo
 export function getGatewayMode(): GatewayMode {
     const config = loadConfig()
     return config?.mode ?? 'builtin'
+}
+
+export function markOnboardingCompleted(): void {
+    log.log('markOnboardingCompleted')
+    const existing = loadConfig()
+    const config: GatewayConfig = {
+        gatewayUrl: existing?.gatewayUrl ?? '',
+        token: existing?.token ?? '',
+        deviceId: existing?.deviceId ?? deriveDeviceId(loadOrCreateKeyPair().publicKeyPem),
+        mode: existing?.mode,
+        builtinToken: existing?.builtinToken,
+        builtinPort: existing?.builtinPort,
+        onboardingCompleted: true,
+    }
+    const configPath = getConfigPath()
+    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+    log.log('markOnboardingCompleted: saved to %s', configPath)
 }
 
 // ── Key pair management ──

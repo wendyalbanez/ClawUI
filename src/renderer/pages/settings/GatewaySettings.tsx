@@ -19,6 +19,7 @@ import {
    PoweroffOutlined,
    ReloadOutlined,
    PlayCircleOutlined,
+   SettingOutlined,
 } from '@ant-design/icons'
 import { useGateway } from '../../contexts/GatewayContext'
 import { useSnapshot } from '../../contexts/SnapshotContext'
@@ -389,6 +390,18 @@ export default function GatewaySettings() {
                </Descriptions>
             </Card>
          )}
+
+         {/* 重新运行设置向导 */}
+         <div
+            style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.08)' }}
+         >
+            <Button
+               icon={<SettingOutlined />}
+               onClick={() => window.dispatchEvent(new Event('clawui:show-onboarding'))}
+            >
+               重新运行设置向导
+            </Button>
+         </div>
       </div>
    )
 }

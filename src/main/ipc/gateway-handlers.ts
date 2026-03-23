@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipc-channels'
-import { loadConfig, saveConfig, getGatewayMode } from '../gateway/config'
+import { loadConfig, saveConfig, getGatewayMode, markOnboardingCompleted } from '../gateway/config'
 import { GatewayClient } from '../gateway/client'
 import { GatewayRequestError } from '../gateway/errors'
 import { formatConnectError } from '../gateway/connect-error'
@@ -95,7 +95,12 @@ export function registerGatewayHandlers(): void {
          return null
       }
       log.log('loadConfig: url=%s', config.gatewayUrl)
-      return { gatewayUrl: config.gatewayUrl, token: config.token, mode: config.mode }
+      return {
+         gatewayUrl: config.gatewayUrl,
+         token: config.token,
+         mode: config.mode,
+         onboardingCompleted: config.onboardingCompleted,
+      }
    })
 
    // 保存配置
@@ -218,6 +223,18 @@ export function registerGatewayHandlers(): void {
          state,
          connected,
          snapshot: client?.getSnapshot() ?? null,
+      }
+   })
+
+   // 标记引导完成
+   ipcMain.handle(IPC.GATEWAY_MARK_ONBOARDING_COMPLETE, () => {
+      log.log('markOnboardingCompleted requested')
+      try {
+         markOnboardingCompleted()
+         return { success: true }
+      } catch (err) {
+         log.error('markOnboardingCompleted error:', err)
+         return { success: false, error: String(err) }
       }
    })
 

@@ -1,0 +1,37 @@
+.container {
+   position: fixed;
+   inset: 0;
+   z-index: 1000;
+   background: var(--ant-color-bg-layout, #141414);
+   display: flex;
+   flex-direction: column;
+   overflow: hidden;
+}
+
+.dragRegion {
+   height: 40px;
+   flex-shrink: 0;
+   -webkit-app-region: drag;
+}
+
+.body {
+   flex: 1;
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   overflow-y: auto;
+   padding: 0 24px 48px;
+}
+
+.inner {
+   width: 100%;
+   max-width: 640px;
+}
+
+.stepsBar {
+   margin-bottom: 32px;
+}
+
+.stepContent {
+   min-height: 300px;
+}

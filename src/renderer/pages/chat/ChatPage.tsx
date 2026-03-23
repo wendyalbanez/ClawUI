@@ -715,7 +715,7 @@ export default function ChatPage() {
          await rpc(RPC.CHAT_SEND, {
             sessionKey,
             message: text,
-            deliver: true,
+            deliver: false,
             attachments: attachments?.length ? attachments : undefined,
             idempotencyKey,
          })
@@ -776,7 +776,7 @@ export default function ChatPage() {
          await rpc(RPC.CHAT_SEND, {
             sessionKey,
             message: text,
-            deliver: true,
+            deliver: false,
             idempotencyKey,
          })
          setGenerationPhase('thinking')

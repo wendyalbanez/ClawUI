@@ -1,6 +1,6 @@
-import { app } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { getDataDir } from '../paths'
 import { createLogger } from '../../shared/logger'
 
 const log = createLogger('DeviceToken')
@@ -21,7 +21,7 @@ interface DeviceAuthStore {
 }
 
 function getTokenPath(): string {
-   return join(app.getPath('userData'), TOKEN_FILE)
+   return join(getDataDir(), TOKEN_FILE)
 }
 
 function readStore(): DeviceAuthStore | null {

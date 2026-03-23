@@ -1,11 +1,12 @@
 import { spawn, type ChildProcess } from 'child_process'
-import { join } from 'path'
-import { existsSync, mkdirSync, writeFileSync } from 'fs'
+import { join, dirname } from 'path'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, appendFileSync } from 'fs'
+import { homedir } from 'os'
 import { randomBytes } from 'crypto'
-import * as net from 'net'
 import { app } from 'electron'
 import type { GatewayProcessStatus } from './types'
 import { saveBuiltinConfig } from './config'
+import { getDataDir } from '../paths'
 import { createLogger } from '../../shared/logger'
 
 const log = createLogger('ProcessManager')
@@ -16,32 +17,23 @@ const STARTUP_TIMEOUT_MS = 30_000
 const SHUTDOWN_TIMEOUT_MS = 5_000
 const INITIAL_RETRY_DELAY_MS = 800
 const MAX_RETRY_DELAY_MS = 15_000
-const PORT_RANGE_START = 19000
-const PORT_RANGE_END = 19999
+const BUILTIN_PORT = 18789
 
 // ── 辅助函数 ──
 
-function findAvailablePort(start: number, end: number): Promise<number> {
-   return new Promise((resolve, reject) => {
-      const server = net.createServer()
-      server.unref()
-      const tryPort = (port: number) => {
-         if (port > end) {
-            reject(new Error(`No available port in range ${start}-${end}`))
-            return
-         }
-         server.once('error', () => tryPort(port + 1))
-         server.once('listening', () => {
-            server.close(() => resolve(port))
-         })
-         server.listen(port, '127.0.0.1')
-      }
-      tryPort(start)
-   })
-}
-
 function generateToken(): string {
    return randomBytes(24).toString('hex')
+}
+
+/** 将诊断日志追加写入 ~/.clawui/process-manager.log 文件 */
+function fileLog(msg: string): void {
+   try {
+      const logPath = join(getDataDir(), 'process-manager.log')
+      const ts = new Date().toISOString()
+      appendFileSync(logPath, `[${ts}] ${msg}\n`)
+   } catch {
+      // 写日志失败不应影响主流程
+   }
 }
 
 // ── 主类 ──
@@ -59,7 +51,32 @@ export class GatewayProcessManager {
 
    constructor() {
       this._openclawPath = this._resolveOpenClawPath()
-      log.log('OpenClaw path: %s, available: %s', this._openclawPath, this.isAvailable())
+      const available = this.isAvailable()
+      log.log('OpenClaw path: %s, available: %s', this._openclawPath, available)
+      log.log(
+         'isPackaged=%s, resourcesPath=%s, execPath=%s',
+         app.isPackaged,
+         process.resourcesPath,
+         process.execPath,
+      )
+      fileLog(
+         `Init: path=${this._openclawPath} available=${available} isPackaged=${app.isPackaged} resourcesPath=${process.resourcesPath} execPath=${process.execPath}`,
+      )
+      // 列出 openclaw 目录内容，方便诊断打包问题
+      const openclawDir = dirname(this._openclawPath)
+      if (existsSync(openclawDir)) {
+         try {
+            const entries = readdirSync(openclawDir)
+            log.log('OpenClaw dir contents (%s): %s', openclawDir, entries.join(', '))
+            fileLog(`OpenClaw dir (${openclawDir}): ${entries.join(', ')}`)
+         } catch (err) {
+            log.warn('Failed to list OpenClaw dir: %s', err)
+            fileLog(`Failed to list OpenClaw dir: ${err}`)
+         }
+      } else {
+         log.warn('OpenClaw dir does not exist: %s', openclawDir)
+         fileLog(`OpenClaw dir does not exist: ${openclawDir}`)
+      }
    }
 
    // ── 公共属性 ──
@@ -103,7 +120,7 @@ export class GatewayProcessManager {
       this._setStatus('starting')
 
       try {
-         this._port = await findAvailablePort(PORT_RANGE_START, PORT_RANGE_END)
+         this._port = BUILTIN_PORT
          this._token = this._token || generateToken()
          log.log('Starting on port %d', this._port)
 
@@ -170,9 +187,9 @@ export class GatewayProcessManager {
    private _spawn(): Promise<void> {
       return new Promise<void>((resolve, reject) => {
          const electronExe = process.execPath
-         // 使用独立的 state/config 目录，避免和用户本地 OpenClaw 配置冲突
-         const builtinStateDir = join(app.getPath('userData'), 'openclaw-builtin')
-         const builtinConfigPath = join(builtinStateDir, 'openclaw.json')
+         // 使用 OpenClaw 默认配置路径 ~/.openclaw/，与 CLI 共享配置
+         const openclawDir = join(homedir(), '.openclaw')
+         const configPath = join(openclawDir, 'openclaw.json')
          const env: Record<string, string> = {
             ...(process.env as Record<string, string>),
             ELECTRON_RUN_AS_NODE: '1',
@@ -180,42 +197,66 @@ export class GatewayProcessManager {
             OPENCLAW_GATEWAY_AUTH_MODE: 'token',
             OPENCLAW_GATEWAY_AUTH_TOKEN: this._token,
             OPENCLAW_NO_RESPAWN: '1',
-            OPENCLAW_STATE_DIR: builtinStateDir,
-            OPENCLAW_CONFIG_PATH: builtinConfigPath,
          }
 
-         // 确保内置实例的 state 目录和配置文件存在（预写 token 避免 Gateway 自动生成）
-         if (!existsSync(builtinStateDir)) {
-            mkdirSync(builtinStateDir, { recursive: true })
+         // 确保配置目录存在，合并 auth 配置到已有文件中
+         if (!existsSync(openclawDir)) {
+            mkdirSync(openclawDir, { recursive: true })
          }
-         const builtinConfig = {
-            gateway: {
-               auth: {
-                  mode: 'token',
-                  token: this._token,
-               },
-            },
+         let config: Record<string, unknown> = {}
+         if (existsSync(configPath)) {
+            try {
+               config = JSON.parse(readFileSync(configPath, 'utf-8'))
+               if (typeof config !== 'object' || config === null) {
+                  config = {}
+               }
+            } catch {
+               log.warn('Failed to parse existing config, starting fresh')
+               config = {}
+            }
          }
-         writeFileSync(builtinConfigPath, JSON.stringify(builtinConfig, null, 2))
+         // 仅更新 gateway.auth 部分，保留其余配置（model provider、workspace 等）
+         const gw =
+            typeof config.gateway === 'object' && config.gateway !== null
+               ? (config.gateway as Record<string, unknown>)
+               : {}
+         gw.auth = { mode: 'token', token: this._token }
+         config.gateway = gw
+         writeFileSync(configPath, JSON.stringify(config, null, 2))
 
-         log.log('Spawning: %s %s (port=%d)', electronExe, this._openclawPath, this._port)
+         log.log(
+            'Spawning: exe=%s script=%s cwd=%s port=%d isPackaged=%s',
+            electronExe,
+            this._openclawPath,
+            dirname(this._openclawPath),
+            this._port,
+            app.isPackaged,
+         )
+         log.log('OpenClaw path exists: %s', existsSync(this._openclawPath))
+         fileLog(
+            `Spawn: exe=${electronExe} script=${this._openclawPath} cwd=${dirname(this._openclawPath)} port=${this._port} pathExists=${existsSync(this._openclawPath)}`,
+         )
 
          const child = spawn(
             electronExe,
             [this._openclawPath, 'gateway', 'run', '--allow-unconfigured'],
             {
+               argv0: 'clawui-builtin-openclaw',
                env,
+               cwd: dirname(this._openclawPath),
                stdio: ['ignore', 'pipe', 'pipe'],
                detached: false,
             },
          )
 
          this._process = child
+         fileLog(`Spawned PID=${child.pid}`)
 
          let startupDone = false
          const startupTimeout = setTimeout(() => {
             if (!startupDone) {
                startupDone = true
+               fileLog(`Startup timeout after ${STARTUP_TIMEOUT_MS}ms`)
                reject(new Error(`Gateway startup timeout after ${STARTUP_TIMEOUT_MS}ms`))
             }
          }, STARTUP_TIMEOUT_MS)
@@ -225,7 +266,8 @@ export class GatewayProcessManager {
          child.stdout?.on('data', (chunk: Buffer) => {
             const text = chunk.toString()
             stdoutBuffer += text
-            log.debug('[gateway stdout] %s', text.trimEnd())
+            log.log('[gateway stdout] %s', text.trimEnd())
+            fileLog(`[stdout] ${text.trimEnd()}`)
 
             // Gateway 启动成功后会输出 "listening on ws://..."
             if (!startupDone && stdoutBuffer.includes('listening on')) {
@@ -233,16 +275,20 @@ export class GatewayProcessManager {
                clearTimeout(startupTimeout)
                this._setStatus('running')
                log.log('Gateway started successfully on port %d', this._port)
+               fileLog(`Gateway started on port ${this._port}`)
                resolve()
             }
          })
 
          child.stderr?.on('data', (chunk: Buffer) => {
-            log.debug('[gateway stderr] %s', chunk.toString().trimEnd())
+            const text = chunk.toString().trimEnd()
+            log.log('[gateway stderr] %s', text)
+            fileLog(`[stderr] ${text}`)
          })
 
          child.on('error', (err) => {
             log.error('Process error:', err)
+            fileLog(`Process error: ${err}`)
             if (!startupDone) {
                startupDone = true
                clearTimeout(startupTimeout)
@@ -252,6 +298,7 @@ export class GatewayProcessManager {
 
          child.on('exit', (code, signal) => {
             log.log('Process exited: code=%s, signal=%s', code, signal)
+            fileLog(`Process exited: code=${code} signal=${signal}`)
             this._process = null
 
             if (!startupDone) {
