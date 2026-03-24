@@ -7,10 +7,15 @@ const log = createLogger('useGatewayEvent')
 /**
  * 订阅 Gateway 事件的 hook
  * 自动在组件 unmount 时取消订阅
+ *
+ * @param eventName 事件名称
+ * @param handler 事件处理函数
+ * @param deps 依赖数组，当依赖变化时会重新订阅（用于访问最新的 ref 值）
  */
 export function useGatewayEvent(
    eventName: string,
    handler: (payload: unknown) => void,
+   deps?: React.DependencyList,
 ): void {
    const { subscribe } = useGateway()
    const handlerRef = useRef(handler)
@@ -25,5 +30,6 @@ export function useGatewayEvent(
          log.debug('Unsubscribing from event: %s', eventName)
          unsub()
       }
-   }, [eventName, subscribe])
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [eventName, subscribe, ...(deps ?? [])])
 }

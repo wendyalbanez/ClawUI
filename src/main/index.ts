@@ -23,8 +23,8 @@ function safeSendToRenderer(channel: string, data: unknown): void {
       if (mainWindow && !mainWindow.isDestroyed()) {
          mainWindow.webContents.send(channel, data)
       }
-   } catch {
-      // 渲染帧已销毁（如 HMR 页面重载期间），静默忽略
+   } catch (e) {
+      log.warn('sendToRenderer error:', e)
    }
 }
 

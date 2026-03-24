@@ -158,12 +158,19 @@ contextBridge.exposeInMainWorld('clawAPI', {
       },
       onBuiltinStatusChanged: (
          callback: (status: 'idle' | 'starting' | 'running' | 'stopping' | 'crashed') => void,
-      ) => {
+      ): (() => void) => {
          log.log('gateway.onBuiltinStatusChanged() listener registered')
-         ipcRenderer.on(IPC.GATEWAY_BUILTIN_STATUS_CHANGED, (_event, status) => {
+         const listener = (
+            _event: Electron.IpcRendererEvent,
+            status: 'idle' | 'starting' | 'running' | 'stopping' | 'crashed',
+         ) => {
             log.log('builtin gateway status changed:', status)
             callback(status)
-         })
+         }
+         ipcRenderer.on(IPC.GATEWAY_BUILTIN_STATUS_CHANGED, listener)
+         return () => {
+            ipcRenderer.removeListener(IPC.GATEWAY_BUILTIN_STATUS_CHANGED, listener)
+         }
       },
 
       // Onboarding

@@ -46,14 +46,14 @@ export default function BuiltinGatewayStep({ onConnected, onSwitchToExternal }: 
          setStatus(s)
       })
 
-      window.clawAPI.gateway.onBuiltinStatusChanged((s) => {
+      const unsubscribe = window.clawAPI.gateway.onBuiltinStatusChanged((s) => {
          log.log('Builtin status changed: %s', s)
          setStatus(s)
          setLoading(false)
       })
 
       return () => {
-         window.clawAPI.gateway.removeAllListeners()
+         unsubscribe()
       }
    }, [])
 

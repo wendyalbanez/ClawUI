@@ -45,7 +45,7 @@ export interface ClawAPI {
       startBuiltin(): Promise<{ success: boolean; error?: string }>
       stopBuiltin(): Promise<void>
       restartBuiltin(): Promise<{ success: boolean; error?: string }>
-      onBuiltinStatusChanged(callback: (status: GatewayProcessStatus) => void): void
+      onBuiltinStatusChanged(callback: (status: GatewayProcessStatus) => void): () => void
 
       // Onboarding
       markOnboardingCompleted(): Promise<{ success: boolean; error?: string }>

@@ -229,7 +229,7 @@ export default function ChatPage() {
          sessionInfoRef.current = null
          assistantIdentityRef.current = null
       }
-   }, [connected, sessionKey, fetchSessionInfo, fetchAssistantIdentity])
+   }, [connected, sessionKey, fetchSessionInfo, fetchAssistantIdentity, rpc])
 
    // 派生 sender 名称：优先使用已加载的 identity，其次回退到 sessionInfo.displayName
    const resolvedSenderName =
@@ -245,6 +245,20 @@ export default function ChatPage() {
          limit: 100,
       })
          .then((result) => {
+            // 如果 sessionKey 是 'main'，则从响应中获取实际的完整 key 并同步到 localStorage
+            // 这样可以确保后续事件匹配使用正确的 key
+            if (sessionKey === 'main' && result?.messages && Array.isArray(result.messages)) {
+               // 从消息中推断实际的 agent session key
+               const rawMessages = result.messages as Array<Record<string, unknown>>
+               for (const m of rawMessages) {
+                  const msgSessionKey = m.sessionKey as string | undefined
+                  if (msgSessionKey && msgSessionKey.startsWith('agent:')) {
+                     log.log('Syncing sessionKey from history: %s -> %s', sessionKey, msgSessionKey)
+                     setSessionKey(msgSessionKey)
+                     break
+                  }
+               }
+            }
             if (result?.messages) {
                log.log('History loaded: %d messages', result.messages.length)
                // Pass 1: 构建消息列表，跳过 toolResult 消息
@@ -538,14 +552,23 @@ export default function ChatPage() {
             clearStreamingState()
             break
       }
-   })
+   }, [sessionKey])
 
    // 监听 agent 事件（工具调用实时流）
    useGatewayEvent('agent', (payload) => {
       const evt = payload as {
          runId?: string
+         sessionKey?: string
          stream?: string
          data?: Record<string, unknown>
+      }
+      if (!isSameSessionKey(evt.sessionKey, sessionKey)) {
+         log.debug(
+            'Agent event ignored: sessionKey mismatch (event=%s, current=%s)',
+            evt.sessionKey,
+            sessionKey,
+         )
+         return
       }
       log.log('Agent event: runId=%s, stream=%s, phase=%s', evt.runId, evt.stream, evt.data?.phase)
       if (!evt.runId) return
@@ -640,7 +663,7 @@ export default function ChatPage() {
          updated[msgIndex] = { ...msg, toolCalls }
          return updated
       })
-   })
+   }, [sessionKey])
 
    // 历史加载时，在浏览器绘制前直接定位到底部，用户不会看到从顶部滚到底部的过程
    useLayoutEffect(() => {
@@ -670,7 +693,9 @@ export default function ChatPage() {
    // 发送消息（支持附件）
    const handleSendWithAttachments = useCallback(async (text: string, attachments?: unknown[]) => {
       const hasAttachments = Array.isArray(attachments) && attachments.length > 0
-      if ((!text && !hasAttachments) || !connected || sending) return
+      if ((!text && !hasAttachments) || !connected || sending) {
+         return
+      }
 
       // 斜杠命令处理
       if (text.startsWith('/')) {

@@ -86,13 +86,13 @@ export default function GatewaySettings() {
 
    // 监听内置 Gateway 状态变化
    useEffect(() => {
-      window.clawAPI.gateway.onBuiltinStatusChanged((status) => {
+      const unsubscribe = window.clawAPI.gateway.onBuiltinStatusChanged((status) => {
          log.log('Builtin status changed: %s', status)
          setBuiltinStatus(status)
          setBuiltinLoading(false)
       })
       return () => {
-         window.clawAPI.gateway.removeAllListeners()
+         unsubscribe()
       }
    }, [])
 

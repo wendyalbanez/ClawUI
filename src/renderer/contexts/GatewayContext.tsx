@@ -47,10 +47,12 @@ export function GatewayProvider(props: { children: React.ReactNode }) {
       api.onStateChanged((state) => {
          log.log('State changed: %s', state)
          setConnectionState(state)
-         setConnected(state === 'connected')
+         const isConnected = state === 'connected'
+         setConnected(isConnected)
          setConnecting(state === 'connecting' || state === 'handshaking')
+
          // 连接成功时清除错误
-         if (state === 'connected') {
+         if (isConnected) {
             log.log('Connected, clearing errors')
             setLastError(null)
             setLastErrorCode(null)
