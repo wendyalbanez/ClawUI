@@ -122,6 +122,21 @@ export function useWizardRpc(): UseWizardRpcReturn {
          let autoCount = 0
 
          while (step) {
+            // ── 每步详细日志（调试用） ──
+            log.log(
+               '[step] #%d phase=%s id=%s type=%s msg=%s opts=%s init=%s sensitive=%s',
+               autoCount,
+               phaseRef.current,
+               step.id,
+               step.type,
+               (step.message ?? step.title ?? '(none)').slice(0, 120),
+               step.options
+                  ? JSON.stringify(step.options.map((o) => o.value))
+                  : '(none)',
+               step.initialValue !== undefined ? JSON.stringify(step.initialValue) : '(none)',
+               step.sensitive ?? false,
+            )
+
             // 检查取消标志
             if (cancelledRef.current) {
                log.log('processStepLoop: cancelled, stopping')
@@ -150,7 +165,7 @@ export function useWizardRpc(): UseWizardRpcReturn {
             // ── 判断是否展示给用户 ──
             if (shouldShowToUser(step, phaseRef.current)) {
                log.log(
-                  'Show to user: phase=%s, step=%s, type=%s, msg=%s',
+                  '→ Show to user: phase=%s, step=%s, type=%s, msg=%s',
                   phaseRef.current,
                   step.id,
                   step.type,
@@ -256,7 +271,7 @@ export function useWizardRpc(): UseWizardRpcReturn {
       async (stepId: string, value: unknown) => {
          const sid = sessionIdRef.current
          if (!sid) return
-         log.log('Answering step: stepId=%s', stepId)
+         log.log('Answering step: stepId=%s, value=%s', stepId, JSON.stringify(value))
          setLoading(true)
          setError(null)
          setCurrentStep(null)
@@ -265,7 +280,12 @@ export function useWizardRpc(): UseWizardRpcReturn {
                sessionId: sid,
                answer: { stepId, value },
             })
-            log.log('wizard.next result: done=%s, status=%s', result.done, result.status)
+            log.log(
+               'wizard.next result: done=%s, status=%s, nextStep=%s',
+               result.done,
+               result.status,
+               result.step ? `${result.step.type}:${result.step.id}` : '(none)',
+            )
 
             if (handleDone(result)) {
                setLoading(false)

@@ -7,6 +7,7 @@ import { app } from 'electron'
 import type { GatewayProcessStatus } from './types'
 import { saveBuiltinConfig, loadConfig } from './config'
 import { getDataDir } from '../paths'
+import { cleanupOpenClawLaunchAgent } from './cleanup-launch-agent'
 import { createLogger } from '../../shared/logger'
 
 const log = createLogger('ProcessManager')
@@ -185,6 +186,11 @@ export class GatewayProcessManager {
    }
 
    private _spawn(): Promise<void> {
+      // 清理 OpenClaw 向导可能安装的 macOS LaunchAgent。
+      // quickstart 流程会自动安装 daemon service，但 ClawUI 内置模式不需要，
+      // 且 LaunchAgent 会在同端口启动独立 Gateway 与内置 Gateway 冲突。
+      cleanupOpenClawLaunchAgent()
+
       return new Promise<void>((resolve, reject) => {
          const electronExe = process.execPath
          // 使用 OpenClaw 默认配置路径 ~/.openclaw/，与 CLI 共享配置

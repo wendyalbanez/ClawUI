@@ -11,7 +11,17 @@
  * 默认 OpenClaw 目录为 ../openclaw（与 ClawUI 同级）。
  */
 
-import { cpSync, existsSync, mkdirSync, rmSync, readFileSync, writeFileSync, renameSync } from 'fs'
+import {
+   cpSync,
+   existsSync,
+   mkdirSync,
+   rmSync,
+   readFileSync,
+   writeFileSync,
+   renameSync,
+   readdirSync,
+   statSync,
+} from 'fs'
 import { execSync } from 'child_process'
 import { join, resolve } from 'path'
 import { build, type Plugin } from 'esbuild'
@@ -146,15 +156,52 @@ async function bundleOpenClaw(targetDir: string): Promise<void> {
       return
    }
 
+   // 收集扩展入口点：extensions/*/index.js
+   // 扩展的 index.js 引用 dist/ 中的 chunk（如 ../../auth-profiles-CctBIFYh.js），
+   // 必须与主入口一起打包，否则 esbuild 替换 dist/ 后这些引用会断裂。
+   const extensionsDir = join(distDir, 'extensions')
+   const extensionEntries: string[] = []
+   const extensionsBackup = join(targetDir, '_extensions_nonjs_backup')
+
+   if (existsSync(extensionsDir)) {
+      // 备份所有扩展的非 JS 文件到临时目录（esbuild 不处理这些）
+      mkdirSync(extensionsBackup, { recursive: true })
+      for (const extName of readdirSync(extensionsDir)) {
+         const extDir = join(extensionsDir, extName)
+         if (!statSync(extDir).isDirectory()) continue
+
+         const indexJs = join(extDir, 'index.js')
+         if (existsSync(indexJs)) {
+            extensionEntries.push(indexJs)
+         }
+
+         // 备份非 JS 文件（openclaw.plugin.json、package.json、skills/ 等）
+         const backupExtDir = join(extensionsBackup, extName)
+         mkdirSync(backupExtDir, { recursive: true })
+         for (const item of readdirSync(extDir)) {
+            if (item === 'index.js') continue
+            cpSync(join(extDir, item), join(backupExtDir, item), { recursive: true })
+         }
+      }
+   }
+
+   if (extensionEntries.length > 0) {
+      console.log(
+         '[prepare-openclaw] Found %d extension entry points to bundle',
+         extensionEntries.length,
+      )
+   }
+
    console.log('[prepare-openclaw] Bundling OpenClaw dist with esbuild...')
 
    await build({
-      entryPoints: [entryJs],
+      entryPoints: [entryJs, ...extensionEntries],
       bundle: true,
       platform: 'node',
       format: 'esm',
       splitting: true,
       outdir: bundledDir,
+      outbase: distDir,
       external: EXTERNAL_PACKAGES,
       plugins: [
          createTsdownRequireFixPlugin(distDir),
@@ -170,6 +217,31 @@ async function bundleOpenClaw(targetDir: string): Promise<void> {
    // 用打包结果替换原始 dist
    rmSync(distDir, { recursive: true })
    renameSync(bundledDir, distDir)
+
+   // 恢复扩展的非 JS 文件（openclaw.plugin.json、package.json、skills/ 等）
+   if (existsSync(extensionsBackup)) {
+      console.log('[prepare-openclaw] Restoring extension non-JS files...')
+      for (const extName of readdirSync(extensionsBackup)) {
+         const backupExtDir = join(extensionsBackup, extName)
+         const destExtDir = join(distDir, 'extensions', extName)
+         mkdirSync(destExtDir, { recursive: true })
+         for (const item of readdirSync(backupExtDir)) {
+            cpSync(join(backupExtDir, item), join(destExtDir, item), { recursive: true })
+         }
+      }
+      rmSync(extensionsBackup, { recursive: true })
+   }
+
+   // 复制 jiti 的 babel.cjs 到 dist/（jiti 内部使用相对路径 ../dist/babel.cjs 引用它）
+   // esbuild 无法处理这种运行时动态路径，需要手动复制
+   const jitiBabelSrc = join(targetDir, 'node_modules', 'jiti', 'dist', 'babel.cjs')
+   const jitiBabelDest = join(distDir, 'babel.cjs')
+   if (existsSync(jitiBabelSrc)) {
+      console.log('[prepare-openclaw] Copying jiti babel.cjs for runtime compatibility...')
+      cpSync(jitiBabelSrc, jitiBabelDest)
+   } else {
+      console.warn('[prepare-openclaw] WARNING: jiti babel.cjs not found, jiti-based plugins may fail to load')
+   }
 
    // node_modules 不再需要
    const nodeModulesDir = join(targetDir, 'node_modules')
@@ -230,6 +302,13 @@ async function main() {
    if (existsSync(assetsDir)) {
       console.log('[prepare-openclaw] Copying assets/ directory...')
       cpSync(assetsDir, join(targetDir, 'assets'), { recursive: true })
+   }
+
+   // 复制 skills 目录（内置技能目录）
+   const skillsDir = join(openclawDir, 'skills')
+   if (existsSync(skillsDir)) {
+      console.log('[prepare-openclaw] Copying skills/ directory...')
+      cpSync(skillsDir, join(targetDir, 'skills'), { recursive: true })
    }
 
    // 复制 docs/reference/templates 目录（Gateway 运行时需要 workspace 模板文件）

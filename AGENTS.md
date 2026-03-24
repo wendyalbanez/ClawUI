@@ -220,6 +220,52 @@ spawn(process.execPath, [openclawPath, 'gateway', 'run', '--allow-unconfigured']
 | 聊天发送成功但无响应 | `chat.send` 使用了 `deliver: true`（应为 `false`），或 Gateway 模板文件缺失 | 检查 ChatPage.tsx 中 `deliver` 参数（UI 客户端必须用 `false`），检查 Gateway 日志确认是否有模板错误 |
 | 引导向导 `wizard not found` | Gateway 的 config-reload 检测到配置变更后触发进程内重启，丢失 wizard session | 确认 `process-manager.ts` 在 `_spawn()` 中设置了 `gw.reload = { mode: 'off' }`，禁用内置 Gateway 的配置热重载 |
 | esbuild 打包时 `@mariozechner/*` export 不匹配 | npm install 获取的版本与 OpenClaw 实际使用的版本不一致 | `prepare-openclaw.ts` 中的 `overrideScopes` 会从 OpenClaw 源码 node_modules 覆盖这些包 |
+| `Cannot find module '../dist/babel.cjs'` | 扩展插件加载失败 | 在 `prepare-openclaw.ts` 中添加 jiti 的 `babel.cjs` 复制到 `dist/` 目录 |
+| 扩展插件列表正常但选择后无 API key 输入框 | 扩展代码加载失败，import 路径指向不存在的 chunk | 确保 `babel.cjs` 已复制，并检查 esbuild 打包日志确认扩展入口被正确处理 |
+| 聊天发送后模型 fallback 成功但无响应 | 模型在 OpenRouter 上不可用 | 使用 `openrouter/auto` 或确认模型 ID 正确 |
+
+## 扩展插件打包注意事项
+
+OpenClaw 的扩展插件（如 openrouter、minimax 等）内部使用了 `jiti`（一个运行时 JS/TS 转译器）。`jiti` 内部使用相对路径 `../dist/babel.cjs` 引用 Babel 转译器。
+
+### 问题表现
+
+1. 扩展出现在向导列表中（插件清单加载成功）
+2. 选择扩展后没有 API key 输入步骤
+3. Gateway 日志显示：`Cannot find module '../dist/babel.cjs'`
+
+### 根本原因
+
+esbuild 打包后，原始的 `jiti/dist/jiti.cjs` 被内联，但其中对 `../dist/babel.cjs` 的引用使用的是运行时相对路径，此时该路径已不存在。
+
+### 解决方案
+
+在 `prepare-openclaw.ts` 中，esbuild 打包完成后、删除 node_modules 之前，复制 `jiti/dist/babel.cjs` 到 `resources/openclaw/dist/` 目录：
+
+```typescript
+// 复制 jiti 的 babel.cjs 到 dist/（jiti 内部使用相对路径 ../dist/babel.cjs 引用它）
+const jitiBabelSrc = join(targetDir, 'node_modules', 'jiti', 'dist', 'babel.cjs')
+const jitiBabelDest = join(distDir, 'babel.cjs')
+if (existsSync(jitiBabelSrc)) {
+   cpSync(jitiBabelSrc, jitiBabelDest)
+}
+```
+
+### 维护规则
+
+如果在后续版本中发现新的扩展插件加载失败，检查是否是类似的相对路径问题。
+
+## 其他必要文件复制
+
+打包时除了核心文件外，还需要复制以下目录：
+
+| 目录 | 用途 | 缺失症状 |
+|------|------|----------|
+| `skills/` | 内置技能定义 | `Bundled skills directory could not be resolved` |
+| `docs/reference/templates/` | Workspace 模板 | `Missing workspace template: AGENTS.md` |
+| `assets/` | 静态资源 | 部分 UI 功能异常 |
+
+这些目录已在 `prepare-openclaw.ts` 中正确配置。
 
 ### 关键文件索引
 
