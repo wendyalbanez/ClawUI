@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback } from 'react'
 import { Typography, Alert, Button, Spin, Space, Popconfirm } from 'antd'
 import { useWizardRpc } from '../hooks/useWizardRpc'
+import { useWizardModels } from '../hooks/useWizardModels'
 import WizardStepRenderer from '../components/WizardStepRenderer'
 import { createLogger } from '../../../../shared/logger'
 
@@ -26,6 +27,9 @@ export default function WizardRpcStep({ onDone, onSkip }: Props) {
       answerStep,
       cancelWizard,
    } = useWizardRpc()
+
+   // 获取模型列表用于格式化显示
+   const { getModelDisplayName } = useWizardModels()
 
    useEffect(() => {
       startWizard()
@@ -144,7 +148,12 @@ export default function WizardRpcStep({ onDone, onSkip }: Props) {
 
          {/* 当前步骤 */}
          {currentStep && (
-            <WizardStepRenderer step={currentStep} loading={loading} onAnswer={handleAnswer} />
+            <WizardStepRenderer
+               step={currentStep}
+               loading={loading}
+               onAnswer={handleAnswer}
+               getModelDisplayName={getModelDisplayName}
+            />
          )}
 
          {/* 底部跳过按钮 */}

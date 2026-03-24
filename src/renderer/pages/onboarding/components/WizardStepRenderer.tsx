@@ -1,34 +1,18 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Typography, Radio, Input, Button, Checkbox, Spin, Space, Alert } from 'antd'
 import type { WizardStep } from '../hooks/useWizardRpc'
 
 const { Title, Paragraph, Text } = Typography
 
-// ── ModelOptionLabel: 显示 provider/name 格式 ──
-function ModelOptionLabel({ label }: { label: string }) {
-   // label 格式: "provider/name" (如 "openrouter/MoonshotAI: Kimi K2.5")
-   const separatorIndex = label.indexOf('/')
-   if (separatorIndex > 0) {
-      const provider = label.slice(0, separatorIndex)
-      const name = label.slice(separatorIndex + 1)
-      return (
-         <span>
-            <Text type="secondary">{provider}</Text>
-            <span style={{ margin: '0 4px', color: '#999' }}>/</span>
-            <Text>{name}</Text>
-         </span>
-      )
-   }
-   return <span>{label}</span>
-}
-
 interface Props {
    step: WizardStep
    loading: boolean
    onAnswer: (stepId: string, value: unknown) => void
+   /** 用于格式化模型选项显示名称的函数 */
+   getModelDisplayName?: (provider: string, modelId: string) => string
 }
 
-export default function WizardStepRenderer({ step, loading, onAnswer }: Props) {
+export default function WizardStepRenderer({ step, loading, onAnswer, getModelDisplayName }: Props) {
    const [value, setValue] = useState<unknown>(step.initialValue ?? null)
 
    // 每次 step 变化时重置 value
@@ -56,6 +40,7 @@ export default function WizardStepRenderer({ step, loading, onAnswer }: Props) {
                loading={loading}
                onChange={setValue}
                onSubmit={submit}
+               getModelDisplayName={getModelDisplayName}
             />
          )}
          {step.type === 'text' && (
@@ -77,6 +62,7 @@ export default function WizardStepRenderer({ step, loading, onAnswer }: Props) {
                loading={loading}
                onChange={setValue}
                onSubmit={submit}
+               getModelDisplayName={getModelDisplayName}
             />
          )}
          {step.type === 'progress' && (
@@ -116,6 +102,40 @@ function NoteRenderer({
    )
 }
 
+// ── ModelOptionLabel: 显示 provider/name 格式 ──
+function ModelOptionLabel({
+   label,
+   getModelDisplayName,
+}: {
+   label: string
+   getModelDisplayName?: (provider: string, modelId: string) => string
+}) {
+   // label 格式: "provider/modelId" (如 "openrouter/moonshotai/kimi-k2.5")
+   const separatorIndex = label.indexOf('/')
+   if (separatorIndex > 0 && getModelDisplayName) {
+      const provider = label.slice(0, separatorIndex)
+      const modelId = label.slice(separatorIndex + 1)
+      // 尝试解析第二层 provider（如果有的话）
+      const secondSlashIndex = modelId.indexOf('/')
+      let displayName: string
+      if (secondSlashIndex > 0 && modelId.slice(0, secondSlashIndex) === provider) {
+         // 已经是 provider/provider/modelId 格式，只取最后的 modelId
+         displayName = getModelDisplayName(provider, modelId)
+      } else {
+         // 普通格式 provider/modelId
+         displayName = getModelDisplayName(provider, modelId)
+      }
+      return (
+         <span>
+            <Text type="secondary">{provider}</Text>
+            <span style={{ margin: '0 4px', color: '#999' }}>/</span>
+            <Text>{displayName}</Text>
+         </span>
+      )
+   }
+   return <span>{label}</span>
+}
+
 // ── select ──
 
 function SelectRenderer({
@@ -124,12 +144,14 @@ function SelectRenderer({
    loading,
    onChange,
    onSubmit,
+   getModelDisplayName,
 }: {
    step: WizardStep
    value: unknown
    loading: boolean
    onChange: (v: unknown) => void
    onSubmit: () => void
+   getModelDisplayName?: (provider: string, modelId: string) => string
 }) {
    return (
       <div>
@@ -146,7 +168,7 @@ function SelectRenderer({
             <Space direction="vertical" style={{ width: '100%' }}>
                {step.options?.map((opt) => (
                   <Radio key={String(opt.value)} value={opt.value} style={{ width: '100%' }}>
-                     <ModelOptionLabel label={opt.label} />
+                     <ModelOptionLabel label={opt.label} getModelDisplayName={getModelDisplayName} />
                      {opt.hint && (
                         <Text
                            type="secondary"
@@ -247,12 +269,14 @@ function MultiselectRenderer({
    loading,
    onChange,
    onSubmit,
+   getModelDisplayName,
 }: {
    step: WizardStep
    value: unknown
    loading: boolean
    onChange: (v: unknown) => void
    onSubmit: () => void
+   getModelDisplayName?: (provider: string, modelId: string) => string
 }) {
    const selected = Array.isArray(value) ? (value as unknown[]) : []
 
@@ -271,7 +295,7 @@ function MultiselectRenderer({
             <Space direction="vertical" style={{ width: '100%' }}>
                {step.options?.map((opt) => (
                   <Checkbox key={String(opt.value)} value={opt.value}>
-                     <ModelOptionLabel label={opt.label} />
+                     <ModelOptionLabel label={opt.label} getModelDisplayName={getModelDisplayName} />
                      {opt.hint && (
                         <Text
                            type="secondary"
