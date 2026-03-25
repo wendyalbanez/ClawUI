@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import { Layout, Typography, Space } from 'antd'
 import { useGateway } from '../../contexts/GatewayContext'
 import { useSnapshot } from '../../contexts/SnapshotContext'
@@ -7,6 +7,7 @@ import { useLocalStorage } from '../../hooks/useLocalStorage'
 import type { ChatEventPayload, ChatContentBlock } from '../../../shared/types/gateway-events'
 import type {
    GatewaySessionRow,
+   GatewaySessionsDefaults,
    SessionsListResult,
    AgentsListResult,
 } from '../../../shared/types/gateway-protocol'
@@ -95,8 +96,25 @@ function normalizeUsage(raw: unknown): ChatMessageUsage | undefined {
 
 export default function ChatPage() {
    const { rpc, connected } = useGateway()
-   const { sessionDefaults } = useSnapshot()
-   const [sessionKey, setSessionKey] = useLocalStorage('clawui.sessionKey', 'main')
+   const { sessionDefaults, helloOk } = useSnapshot()
+   const [rawSessionKey, setRawSessionKey] = useLocalStorage('clawui.sessionKey', 'main')
+
+   // 将简写 'main' 解析为完整会话键（如 'agent:coder:main'）
+   const sessionKey = useMemo(() => {
+      if (rawSessionKey === 'main' && sessionDefaults?.mainSessionKey) {
+         return sessionDefaults.mainSessionKey
+      }
+      return rawSessionKey
+   }, [rawSessionKey, sessionDefaults?.mainSessionKey])
+
+   // 将解析后的完整键持久化到 localStorage，避免下次启动重复解析
+   useEffect(() => {
+      if (rawSessionKey === 'main' && sessionDefaults?.mainSessionKey) {
+         log.log('Persisting resolved sessionKey: main -> %s', sessionDefaults.mainSessionKey)
+         setRawSessionKey(sessionDefaults.mainSessionKey)
+      }
+   }, [rawSessionKey, sessionDefaults?.mainSessionKey, setRawSessionKey])
+
    const [messages, setMessages] = useState<ChatMessageItem[]>([])
    const [inputValue, setInputValue] = useState('')
    const [sending, setSending] = useState(false)
@@ -116,6 +134,8 @@ export default function ChatPage() {
 
    // ── 会话信息 & Agent 身份 ──
    const [sessionInfo, setSessionInfo] = useState<GatewaySessionRow | null>(null)
+   const [sessionListDefaults, setSessionListDefaults] =
+      useState<GatewaySessionsDefaults | null>(null)
    const [assistantIdentity, setAssistantIdentity] = useState<AssistantIdentity | null>(null)
    const sessionInfoRef = useRef<GatewaySessionRow | null>(null)
    const assistantIdentityRef = useRef<AssistantIdentity | null>(null)
@@ -138,6 +158,11 @@ export default function ChatPage() {
 
          if (!result?.sessions) return
 
+         // 保存 defaults（包含默认 model 信息，用于回退显示）
+         if (result.defaults) {
+            setSessionListDefaults(result.defaults)
+         }
+
          // 查找匹配当前 sessionKey 的会话条目
          const normalizeMatchKey = (key: string) => parseAgentSessionKey(key)?.rest ?? key
          const currentMatchKey = normalizeMatchKey(sessionKey)
@@ -147,15 +172,24 @@ export default function ChatPage() {
          })
 
          if (entry) {
+            // 如果会话没有显式 model，用 defaults 填充（Gateway 使用服务端默认值时 entry.model 为空）
+            const resolvedEntry =
+               !entry.model && result.defaults?.model
+                  ? {
+                       ...entry,
+                       model: result.defaults.model,
+                       modelProvider: result.defaults.modelProvider ?? entry.modelProvider,
+                    }
+                  : entry
             log.log(
                'Session info loaded: model=%s, modelProvider=%s, contextTokens=%s, verboseLevel=%s',
-               entry.model,
-               entry.modelProvider,
-               entry.contextTokens,
-               entry.verboseLevel,
+               resolvedEntry.model,
+               resolvedEntry.modelProvider,
+               resolvedEntry.contextTokens,
+               resolvedEntry.verboseLevel,
             )
-            setSessionInfo(entry)
-            sessionInfoRef.current = entry
+            setSessionInfo(resolvedEntry)
+            sessionInfoRef.current = resolvedEntry
 
             // 确保 verboseLevel 为 full，以便接收工具调用事件并显示输出
             const verbose = entry.verboseLevel
@@ -218,18 +252,19 @@ export default function ChatPage() {
    }, [connected, sessionKey, rpc])
 
    useEffect(() => {
-      if (connected) {
-         log.log('Connected, fetching session info and assistant identity...')
+      if (connected && helloOk) {
+         log.log('Connected & helloOk, fetching session info and assistant identity...')
          fetchSessionInfo()
          fetchAssistantIdentity()
       } else {
-         log.log('Disconnected, clearing session state')
+         log.log('Disconnected or not helloOk, clearing session state')
          setSessionInfo(null)
+         setSessionListDefaults(null)
          setAssistantIdentity(null)
          sessionInfoRef.current = null
          assistantIdentityRef.current = null
       }
-   }, [connected, sessionKey, fetchSessionInfo, fetchAssistantIdentity, rpc])
+   }, [connected, helloOk, sessionKey, fetchSessionInfo, fetchAssistantIdentity, rpc])
 
    // 派生 sender 名称：优先使用已加载的 identity，其次回退到 sessionInfo.displayName
    const resolvedSenderName =
@@ -237,7 +272,7 @@ export default function ChatPage() {
 
    // 加载历史
    useEffect(() => {
-      if (!connected) return
+      if (!connected || !helloOk) return
       isInitialLoadRef.current = true
       log.log('Loading chat history: sessionKey=%s', sessionKey)
       rpc<{ messages?: unknown[] }>(RPC.CHAT_HISTORY, {
@@ -254,7 +289,7 @@ export default function ChatPage() {
                   const msgSessionKey = m.sessionKey as string | undefined
                   if (msgSessionKey && msgSessionKey.startsWith('agent:')) {
                      log.log('Syncing sessionKey from history: %s -> %s', sessionKey, msgSessionKey)
-                     setSessionKey(msgSessionKey)
+                     setRawSessionKey(msgSessionKey)
                      break
                   }
                }
@@ -314,7 +349,7 @@ export default function ChatPage() {
          .catch((err) => {
             log.error('Failed to load history:', err)
          })
-   }, [connected, sessionKey, rpc])
+   }, [connected, helloOk, sessionKey, rpc])
 
    // 清理流式状态的公共函数
    const clearStreamingState = useCallback(() => {
@@ -1136,7 +1171,7 @@ export default function ChatPage() {
                <Text strong>对话</Text>
                <AgentSessionSelector
                   currentSessionKey={sessionKey}
-                  onSessionChange={setSessionKey}
+                  onSessionChange={setRawSessionKey}
                   connected={connected}
                   rpc={rpc}
                   disabled={streaming}
@@ -1240,6 +1275,7 @@ export default function ChatPage() {
                disabled={!connected}
                sessionKey={sessionKey}
                sessionInfo={sessionInfo}
+               sessionListDefaults={sessionListDefaults}
                connected={connected}
                rpc={rpc}
                onSessionInfoRefresh={fetchSessionInfo}

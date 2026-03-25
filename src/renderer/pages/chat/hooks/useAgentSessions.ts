@@ -7,6 +7,7 @@ import type {
    SessionsListResult,
 } from '../../../../shared/types/gateway-protocol'
 import { parseAgentSessionKey } from '../utils/sessionKeyUtils'
+import { useSnapshot } from '../../../contexts/SnapshotContext'
 import { createLogger } from '../../../../shared/logger'
 
 const log = createLogger('useAgentSessions')
@@ -34,6 +35,7 @@ export function useAgentSessions({
    rpc,
    currentSessionKey,
 }: UseAgentSessionsOptions): UseAgentSessionsResult {
+   const { helloOk } = useSnapshot()
    const [agents, setAgents] = useState<AgentInfo[]>([])
    const [agentsLoading, setAgentsLoading] = useState(false)
    const [defaultAgentId, setDefaultAgentId] = useState<string | null>(null)
@@ -102,7 +104,7 @@ export function useAgentSessions({
 
    // 连接建立时一次性加载 agents + 所有 sessions
    useEffect(() => {
-      if (!connected) {
+      if (!connected || !helloOk) {
          setAgents([])
          agentsRef.current = []
          setDefaultAgentId(null)
@@ -175,7 +177,7 @@ export function useAgentSessions({
       return () => {
          cancelled = true
       }
-   }, [connected, rpc])
+   }, [connected, helloOk, rpc])
 
    // 派生当前 Agent 和 Session
    const currentAgent = useMemo(() => {

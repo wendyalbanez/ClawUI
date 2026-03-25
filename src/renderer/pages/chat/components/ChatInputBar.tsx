@@ -8,6 +8,7 @@ import {
 } from '@agentscope-ai/icons'
 import type {
    GatewaySessionRow,
+   GatewaySessionsDefaults,
    SessionsPatchResult,
 } from '../../../../shared/types/gateway-protocol'
 import { RPC } from '../../../../shared/types/gateway-rpc'
@@ -35,6 +36,7 @@ interface ChatInputBarProps {
    disabled: boolean
    sessionKey: string
    sessionInfo: GatewaySessionRow | null
+   sessionListDefaults: GatewaySessionsDefaults | null
    connected: boolean
    rpc: <T = unknown>(method: string, params?: unknown) => Promise<T>
    onSessionInfoRefresh: () => void
@@ -49,6 +51,7 @@ export default function ChatInputBar({
    disabled,
    sessionKey,
    sessionInfo,
+   sessionListDefaults,
    connected,
    rpc,
    onSessionInfoRefresh,
@@ -135,17 +138,18 @@ export default function ChatInputBar({
 
    // ── Model selection ──
    // currentModel 需要转换为 provider/id 格式以匹配 select 的 value
+   // 当 sessionInfo.model 为空时（使用服务端默认值），回退到 sessionListDefaults
    const currentModel = useMemo(() => {
-      if (!sessionInfo?.model) return ''
-      const model = sessionInfo.model
-      const provider = sessionInfo.modelProvider
+      const model = sessionInfo?.model ?? sessionListDefaults?.model
+      const provider = sessionInfo?.modelProvider ?? sessionListDefaults?.modelProvider
+      if (!model) return ''
       // 如果有 provider，拼接成完整的 provider/model 格式
       if (provider) {
          return `${provider}/${model}`
       }
       // 否则直接返回 model
       return model
-   }, [sessionInfo?.model, sessionInfo?.modelProvider])
+   }, [sessionInfo?.model, sessionInfo?.modelProvider, sessionListDefaults?.model, sessionListDefaults?.modelProvider])
 
    // 构建模型选项：label 显示为 "provider/name" 格式，与 Wizard 向导保持一致
    const modelOptions = useMemo(

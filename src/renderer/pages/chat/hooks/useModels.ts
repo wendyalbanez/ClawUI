@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { RPC } from '../../../../shared/types/gateway-rpc'
+import { useSnapshot } from '../../../contexts/SnapshotContext'
 import type { ModelChoice } from '../types'
 import { createLogger } from '../../../../shared/logger'
 
@@ -17,6 +18,7 @@ interface UseModelsResult {
 }
 
 export function useModels({ connected, rpc }: UseModelsOptions): UseModelsResult {
+   const { helloOk } = useSnapshot()
    const [models, setModels] = useState<ModelChoice[]>([])
    const [loading, setLoading] = useState(false)
 
@@ -37,12 +39,12 @@ export function useModels({ connected, rpc }: UseModelsOptions): UseModelsResult
    }, [connected, rpc])
 
    useEffect(() => {
-      if (connected) {
+      if (connected && helloOk) {
          fetchModels()
       } else {
          setModels([])
       }
-   }, [connected, fetchModels])
+   }, [connected, helloOk, fetchModels])
 
    return { models, loading, refetch: fetchModels }
 }
