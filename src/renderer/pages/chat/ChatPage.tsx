@@ -326,6 +326,13 @@ export default function ChatPage() {
                      continue
                   }
 
+                  // 提取实际使用的模型（Gateway 在消息上记录实际模型，排除 gateway-injected）
+                  const rawModel = m.model as string | undefined
+                  const historyModel =
+                     typeof rawModel === 'string' && rawModel !== 'gateway-injected'
+                        ? rawModel
+                        : undefined
+
                   items.push({
                      id: `history-${i}`,
                      role,
@@ -339,6 +346,7 @@ export default function ChatPage() {
                            : Date.now(),
                      status: 'done' as const,
                      usage: normalizeUsage(m.usage),
+                     model: historyModel,
                   })
                }
                setMessages(items)
@@ -385,16 +393,28 @@ export default function ChatPage() {
                const m = rawMessages[i]
                if (m.role === 'assistant') {
                   const usage = normalizeUsage(m.usage)
-                  if (usage) {
+                  const rawModel = m.model as string | undefined
+                  const backfillModel =
+                     typeof rawModel === 'string' && rawModel !== 'gateway-injected'
+                        ? rawModel
+                        : undefined
+                  if (usage || backfillModel) {
                      log.log(
-                        'Backfill usage found: in=%s, out=%s',
-                        usage.inputTokens,
-                        usage.outputTokens,
+                        'Backfill found: in=%s, out=%s, model=%s',
+                        usage?.inputTokens,
+                        usage?.outputTokens,
+                        backfillModel,
                      )
                      setMessages((prev) =>
-                        prev.map((msg) =>
-                           msg.id === runId && !msg.usage ? { ...msg, usage } : msg,
-                        ),
+                        prev.map((msg) => {
+                           if (msg.id !== runId) return msg
+                           const updates: Partial<ChatMessageItem> = {}
+                           if (usage && !msg.usage) updates.usage = usage
+                           if (backfillModel && !msg.model) updates.model = backfillModel
+                           return Object.keys(updates).length > 0
+                              ? { ...msg, ...updates }
+                              : msg
+                        }),
                      )
                   }
                   break
@@ -499,6 +519,12 @@ export default function ChatPage() {
                evt.usage ??
                (evt.message as Record<string, unknown> | undefined)?.usage
             const usage = normalizeUsage(rawUsage)
+            // 从 final 消息中提取实际使用的模型（排除 gateway-injected）
+            const msgObj = evt.message as Record<string, unknown> | undefined
+            const finalModel =
+               typeof msgObj?.model === 'string' && msgObj.model !== 'gateway-injected'
+                  ? (msgObj.model as string)
+                  : undefined
             log.log(
                'Final: runId=%s, contentLen=%d, hasThinking=%s, toolCalls=%d, usage=%s',
                evt.runId,
@@ -536,6 +562,7 @@ export default function ChatPage() {
                      toolCalls: mergedToolCalls,
                      status: 'done' as const,
                      usage,
+                     model: finalModel ?? m.model,
                   }
                }),
             )

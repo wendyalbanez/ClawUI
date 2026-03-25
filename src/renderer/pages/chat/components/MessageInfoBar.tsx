@@ -74,7 +74,7 @@ function MessageInfoBar({
                   borderRadius: 4,
                }}
             >
-               {model}
+               {model.includes('/') ? model.split('/').pop()! : model}
             </Tag>
          )}
       </div>
