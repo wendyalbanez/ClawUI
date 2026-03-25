@@ -95,10 +95,19 @@ export function registerGatewayHandlers(): void {
          log.log('loadConfig: no config found')
          return null
       }
-      log.log('loadConfig: url=%s', config.gatewayUrl)
+
+      // builtin 模式下返回实际的连接 URL 和 Token（而非可能为空的 gatewayUrl/token）
+      let effectiveUrl = config.gatewayUrl
+      let effectiveToken = config.token
+      if (config.mode === 'builtin' && config.builtinPort && config.builtinToken) {
+         effectiveUrl = `ws://127.0.0.1:${config.builtinPort}/ws`
+         effectiveToken = config.builtinToken
+      }
+
+      log.log('loadConfig: url=%s, mode=%s', effectiveUrl, config.mode)
       return {
-         gatewayUrl: config.gatewayUrl,
-         token: config.token,
+         gatewayUrl: effectiveUrl,
+         token: effectiveToken,
          mode: config.mode,
          onboardingCompleted: config.onboardingCompleted,
       }
