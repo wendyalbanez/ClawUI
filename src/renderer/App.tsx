@@ -1,17 +1,25 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { Spin } from 'antd'
-import { ConfigProvider, carbonDarkTheme } from '@agentscope-ai/design'
+import { ConfigProvider, carbonDarkTheme, carbonTheme } from '@agentscope-ai/design'
 import { GatewayProvider } from './contexts/GatewayContext'
 import { SnapshotProvider } from './contexts/SnapshotContext'
 import { NavigationProvider } from './contexts/NavigationContext'
 import AppShell from './layouts/AppShell'
+import { useLocalStorage } from './hooks/useLocalStorage'
 import { createLogger } from '../shared/logger'
 
 const log = createLogger('App')
+type ThemeMode = 'dark' | 'light'
+const THEME_STORAGE_KEY = 'clawui:theme-mode'
 
 const OnboardingWizard = lazy(() => import('./pages/onboarding/OnboardingWizard'))
 
-function AppRoot() {
+interface AppRootProps {
+   themeMode: ThemeMode
+   onToggleTheme: () => void
+}
+
+function AppRoot({ themeMode, onToggleTheme }: AppRootProps) {
    const [loading, setLoading] = useState(true)
    const [showOnboarding, setShowOnboarding] = useState(false)
 
@@ -86,16 +94,23 @@ function AppRoot() {
       )
    }
 
-   return <AppShell />
+   return <AppShell themeMode={themeMode} onToggleTheme={onToggleTheme} />
 }
 
 export default function App() {
+   const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>(THEME_STORAGE_KEY, 'dark')
+   const currentThemeMode: ThemeMode = themeMode === 'light' ? 'light' : 'dark'
+   const themeConfig = currentThemeMode === 'dark' ? carbonDarkTheme : carbonTheme
+   const handleToggleTheme = useCallback(() => {
+      setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'))
+   }, [setThemeMode])
+
    return (
       <NavigationProvider>
          <GatewayProvider>
             <SnapshotProvider>
-               <ConfigProvider {...carbonDarkTheme}>
-                  <AppRoot />
+               <ConfigProvider {...themeConfig}>
+                  <AppRoot themeMode={currentThemeMode} onToggleTheme={handleToggleTheme} />
                </ConfigProvider>
             </SnapshotProvider>
          </GatewayProvider>

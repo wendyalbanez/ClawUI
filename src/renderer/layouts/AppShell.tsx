@@ -29,7 +29,12 @@ const PAGE_COMPONENTS: Record<NavPage, React.LazyExoticComponent<React.Component
    debug: lazy(() => import('../pages/debug/DebugPage')),
 }
 
-export default React.memo(function AppShell() {
+interface AppShellProps {
+   themeMode: 'dark' | 'light'
+   onToggleTheme: () => void
+}
+
+export default React.memo(function AppShell({ themeMode, onToggleTheme }: AppShellProps) {
    const { connected } = useGateway()
    const { currentPage } = useNavigation()
    const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -41,6 +46,8 @@ export default React.memo(function AppShell() {
          <TitleBar
             sidebarCollapsed={sidebarCollapsed}
             onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+            themeMode={themeMode}
+            onToggleTheme={onToggleTheme}
          />
          <Layout style={{ flex: 1, overflow: 'hidden' }}>
             <Sidebar collapsed={sidebarCollapsed} />

@@ -3,15 +3,24 @@ import { Button, Tooltip } from 'antd'
 import {
    MenuFoldOutlined,
    MenuUnfoldOutlined,
+   MoonOutlined,
    QuestionCircleOutlined,
+   SunOutlined,
 } from '@ant-design/icons'
 
 interface TitleBarProps {
    sidebarCollapsed: boolean
    onToggleSidebar: () => void
+   themeMode: 'dark' | 'light'
+   onToggleTheme: () => void
 }
 
-export default React.memo(function TitleBar({ sidebarCollapsed, onToggleSidebar }: TitleBarProps) {
+export default React.memo(function TitleBar({
+   sidebarCollapsed,
+   onToggleSidebar,
+   themeMode,
+   onToggleTheme,
+}: TitleBarProps) {
    return (
       <div
          style={{
@@ -53,6 +62,13 @@ export default React.memo(function TitleBar({ sidebarCollapsed, onToggleSidebar 
                WebkitAppRegion: 'no-drag',
             } as React.CSSProperties}
          >
+            <Tooltip title={themeMode === 'dark' ? '切换到亮色主题' : '切换到暗黑主题'}>
+               <Button
+                  type="text"
+                  icon={themeMode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+                  onClick={onToggleTheme}
+               />
+            </Tooltip>
             <Tooltip title="问题反馈">
                <Button type="text" icon={<QuestionCircleOutlined />} />
             </Tooltip>

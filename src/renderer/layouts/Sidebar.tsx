@@ -78,12 +78,13 @@ export default React.memo(function Sidebar({ collapsed }: SidebarProps) {
    return (
       <Sider
          className={styles.sider}
-         theme="dark"
+         theme="light"
          width={collapsed ? 0 : 200}
          style={{
             height: '100%',
             overflow: 'auto',
             borderRight: collapsed ? 'none' : '1px solid var(--ant-color-border-secondary, #f0f0f0)',
+            background: 'var(--ant-color-bg-container)',
             display: 'flex',
             flexDirection: 'column',
             transition: 'width 0.2s ease',
@@ -91,10 +92,11 @@ export default React.memo(function Sidebar({ collapsed }: SidebarProps) {
       >
          <Menu
             mode="inline"
+            theme="light"
             selectedKeys={[currentPage]}
             items={menuItems}
             onClick={({ key }) => navigate(key as NavPage)}
-            style={{ flex: 1, borderRight: 0 }}
+            style={{ flex: 1, borderRight: 0, background: 'transparent' }}
          />
       </Sider>
    )
