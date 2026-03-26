@@ -17,14 +17,18 @@ const processManager = new GatewayProcessManager()
 log.log('Initializing main process...')
 
 // 安全地向渲染进程发送 IPC 消息
-// dev 模式下主进程热重载或窗口关闭时，渲染帧可能已被销毁
+// dev 模式下页面重载或窗口关闭时，渲染帧可能已被销毁
+// 注意：不能使用 webContents.send()，因为 Electron 内部实现会在 catch 中
+// 先 console.error 再 rethrow，导致即使外层 catch 了也会在控制台输出错误
+// 直接使用 mainFrame.send() 绕过 Electron 的 console.error 包装
 function safeSendToRenderer(channel: string, data: unknown): void {
+   if (!mainWindow || mainWindow.isDestroyed()) return
    try {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-         mainWindow.webContents.send(channel, data)
-      }
-   } catch (e) {
-      log.warn('sendToRenderer error:', e)
+      const frame = mainWindow.webContents.mainFrame
+      if (frame.isDestroyed()) return
+      frame.send(channel, data)
+   } catch {
+      // 页面重载期间 frame 已销毁 — 安全忽略
    }
 }
 

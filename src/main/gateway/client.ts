@@ -70,6 +70,8 @@ interface SelectedConnectAuth {
 
 // ── GatewayClient ──
 
+let _instanceCounter = 0
+
 export class GatewayClient {
    private ws: WebSocket | null = null
    private state: ConnectionState = ConnectionState.Disconnected
@@ -89,8 +91,11 @@ export class GatewayClient {
    private pendingDeviceTokenRetry = false
    private deviceTokenRetryBudgetUsed = false
    private deviceId: string | null = null
+   private readonly instanceId = ++_instanceCounter
 
-   constructor(private opts: GatewayClientOptions) {}
+   constructor(private opts: GatewayClientOptions) {
+      log.log('New GatewayClient instance #%d, url=%s', this.instanceId, opts.url)
+   }
 
    // ── Public API ──
 
@@ -111,7 +116,7 @@ export class GatewayClient {
    }
 
    start(): void {
-      log.log('start() called, url:', this.opts.url)
+      log.log('#%d start() called, url: %s', this.instanceId, this.opts.url)
       this.closed = false
       this.backoffMs = BACKOFF_INITIAL_MS
       this.pendingDeviceTokenRetry = false
@@ -120,7 +125,7 @@ export class GatewayClient {
    }
 
    stop(): void {
-      log.log('stop() called')
+      log.log('#%d stop() called', this.instanceId)
       this.closed = true
       this._cleanup()
       this.snapshot = null
@@ -177,7 +182,7 @@ export class GatewayClient {
       }
       this._cleanup()
       this._setState(ConnectionState.Connecting)
-      log.log('_connect() initiating WebSocket to:', this.opts.url)
+      log.log('#%d _connect() initiating WebSocket to: %s', this.instanceId, this.opts.url)
 
       try {
          // 设置 Origin 头以通过 Gateway 的 allowedOrigins 校验
