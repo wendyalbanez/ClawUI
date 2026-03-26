@@ -77,7 +77,7 @@ export default React.memo(function Sidebar({ collapsed }: SidebarProps) {
 
    return (
       <Sider
-         className={styles.sider}
+         className={`${styles.sider} claw-scrollbar`}
          theme="light"
          width={collapsed ? 0 : 200}
          style={{

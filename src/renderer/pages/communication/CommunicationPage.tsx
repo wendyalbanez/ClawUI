@@ -188,7 +188,7 @@ export default function CommunicationPage() {
          {commDiff.length > 0 && <ConfigDiff diff={commDiff} />}
 
          {/* -- 内容区域 -- */}
-         <div className={styles.contentArea}>
+         <div className={`${styles.contentArea} claw-scrollbar`}>
             <Spin spinning={state.loading || state.schemaLoading}>
                {availableTabs.length > 0 ? (
                   <Tabs

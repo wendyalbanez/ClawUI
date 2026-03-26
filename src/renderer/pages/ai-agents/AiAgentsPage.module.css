@@ -222,24 +222,6 @@
    padding: 16px;
 }
 
-/* 滚动条美化 */
-.contentArea::-webkit-scrollbar {
-   width: 6px;
-}
-
-.contentArea::-webkit-scrollbar-track {
-   background: transparent;
-}
-
-.contentArea::-webkit-scrollbar-thumb {
-   background: rgba(255, 255, 255, 0.1);
-   border-radius: 3px;
-}
-
-.contentArea::-webkit-scrollbar-thumb:hover {
-   background: rgba(255, 255, 255, 0.2);
-}
-
 /* ── Alert 增强 ── */
 
 .pageContainer :global(.ant-alert) {

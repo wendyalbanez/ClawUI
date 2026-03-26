@@ -13,6 +13,56 @@ html, body {
   background: var(--ant-color-bg-layout, #f0f0f0);
 }
 
+:root {
+  --claw-scrollbar-size: 9px;
+  --claw-scrollbar-thumb: color-mix(in srgb, var(--ant-color-text, #6b7280) 24%, transparent);
+  --claw-scrollbar-thumb-hover: color-mix(in srgb, var(--ant-color-text, #6b7280) 36%, transparent);
+  --claw-scrollbar-thumb-active: color-mix(in srgb, var(--ant-color-text, #6b7280) 48%, transparent);
+}
+
+.claw-scrollbar {
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+}
+
+.claw-scrollbar:hover {
+  scrollbar-width: thin;
+  scrollbar-color: var(--claw-scrollbar-thumb) transparent;
+}
+
+.claw-scrollbar::-webkit-scrollbar {
+  width: var(--claw-scrollbar-size);
+  height: var(--claw-scrollbar-size);
+}
+
+.claw-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.claw-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background: transparent;
+  background-clip: padding-box;
+  min-height: 32px;
+}
+
+.claw-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: var(--claw-scrollbar-thumb);
+}
+
+.claw-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--claw-scrollbar-thumb-hover);
+}
+
+.claw-scrollbar::-webkit-scrollbar-thumb:active {
+  background: var(--claw-scrollbar-thumb-active);
+}
+
+.claw-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }

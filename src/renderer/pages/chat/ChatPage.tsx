@@ -1240,6 +1240,7 @@ export default function ChatPage() {
          >
             {/* 消息列表 */}
             <div
+               className="claw-scrollbar"
                ref={messagesContainerRef}
                style={{
                   flex: 1,

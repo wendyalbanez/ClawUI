@@ -54,6 +54,7 @@ export default React.memo(function AppShell({ themeMode, onToggleTheme }: AppShe
             <Layout>
                {!connected && <ConnectionBanner />}
                <Content
+                  className="claw-scrollbar"
                   style={{
                      padding: currentPage === 'chat' ? 0 : 24,
                      overflow: 'auto',

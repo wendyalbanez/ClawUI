@@ -165,7 +165,7 @@ export default function AiAgentsPage() {
          )}
 
          {/* ── 内容区域 ── */}
-         <div className={styles.contentArea}>
+         <div className={`${styles.contentArea} claw-scrollbar`}>
             <Spin spinning={state.loading || state.schemaLoading}>
                {state.formMode === 'form' ? (
                   <ConfigForm
