@@ -114,8 +114,8 @@ function createMenu(): void {
 function createWindow(): void {
    log.log('Creating browser window...')
    mainWindow = new BrowserWindow({
-      width: 800,
-      height: 800,
+      width: 872,
+      height: 830,
       minWidth: 600,
       minHeight: 600,
       center: true,
