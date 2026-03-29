@@ -45,6 +45,9 @@ const EXTERNAL_PACKAGES = [
    // 超大包 / Gateway 不需要
    'playwright-core',
    'pdfjs-dist',
+   // 可选扩展依赖（动态 import，运行时优雅降级）
+   '@microsoft/*',
+   '@lancedb/lancedb',
 ]
 
 /**
@@ -221,6 +224,7 @@ async function bundleOpenClaw(targetDir: string, openclawVersion: string): Promi
       outdir: bundledDir,
       outbase: distDir,
       external: EXTERNAL_PACKAGES,
+      loader: { '.node': 'copy' },
       plugins: [
          createTsdownRequireFixPlugin(distDir),
          createExportsFixPlugin(join(targetDir, 'node_modules')),
