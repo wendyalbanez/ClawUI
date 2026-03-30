@@ -110,8 +110,9 @@ function createTsdownRequireFixPlugin(distDir: string): Plugin {
  */
 function createExportsFixPlugin(nodeModulesDir: string): Plugin {
    // 需要修正的导入：映射到实际文件路径
+   // file-type v22 移除了 core.js，功能合并到 source/index.js
    const RESOLVE_OVERRIDES: Record<string, string> = {
-      'file-type/core.js': join(nodeModulesDir, 'file-type', 'core.js'),
+      'file-type/core.js': join(nodeModulesDir, 'file-type', 'source', 'index.js'),
    }
 
    const escapedKeys = Object.keys(RESOLVE_OVERRIDES).map((k) =>
