@@ -48,6 +48,17 @@ const EXTERNAL_PACKAGES = [
    // 可选扩展依赖（动态 import，运行时优雅降级）
    '@microsoft/*',
    '@lancedb/lancedb',
+   // 可选云服务 SDK
+   '@aws-sdk/*',
+   // 可选通道集成（飞书、Telegram、Discord、Slack）
+   '@larksuiteoapi/node-sdk',
+   '@buape/carbon',
+   '@slack/*',
+   'grammy',
+   '@grammyjs/*',
+   // 可选媒体处理
+   'silk-wasm',
+   'mpg123-decoder',
 ]
 
 /**
@@ -176,9 +187,11 @@ async function bundleOpenClaw(targetDir: string, openclawVersion: string): Promi
       return
    }
 
-   // 收集扩展入口点：extensions/*/index.js
-   // 扩展的 index.js 引用 dist/ 中的 chunk（如 ../../auth-profiles-CctBIFYh.js），
+   // 收集扩展入口点：extensions/*/*.js
+   // 扩展的 JS 文件引用 dist/ 中的 chunk（如 ../../auth-profiles-CctBIFYh.js），
    // 必须与主入口一起打包，否则 esbuild 替换 dist/ 后这些引用会断裂。
+   // 除 index.js 外，扩展还有 api.js、runtime-api.js、model-id.js 等 public surface 文件，
+   // 它们同样引用父级 chunk，必须全部作为 esbuild 入口点。
    const extensionsDir = join(distDir, 'extensions')
    const extensionEntries: string[] = []
    const extensionsBackup = join(targetDir, '_extensions_nonjs_backup')
@@ -190,9 +203,11 @@ async function bundleOpenClaw(targetDir: string, openclawVersion: string): Promi
          const extDir = join(extensionsDir, extName)
          if (!statSync(extDir).isDirectory()) continue
 
-         const indexJs = join(extDir, 'index.js')
-         if (existsSync(indexJs)) {
-            extensionEntries.push(indexJs)
+         // 收集该扩展目录下所有顶层 .js 文件作为 esbuild 入口点
+         for (const item of readdirSync(extDir)) {
+            if (item.endsWith('.js') && statSync(join(extDir, item)).isFile()) {
+               extensionEntries.push(join(extDir, item))
+            }
          }
 
          // 备份非 JS 文件（openclaw.plugin.json、package.json、skills/ 等）
@@ -201,7 +216,7 @@ async function bundleOpenClaw(targetDir: string, openclawVersion: string): Promi
          const backupExtDir = join(extensionsBackup, extName)
          mkdirSync(backupExtDir, { recursive: true })
          for (const item of readdirSync(extDir)) {
-            if (item === 'index.js' || item === 'node_modules') continue
+            if (item.endsWith('.js') || item === 'node_modules') continue
             cpSync(join(extDir, item), join(backupExtDir, item), { recursive: true })
          }
       }
@@ -278,7 +293,11 @@ async function bundleOpenClaw(targetDir: string, openclawVersion: string): Promi
    if (existsSync(pkgJson)) {
       rmSync(pkgJson)
    }
-   const finalPkg: Record<string, unknown> = { type: 'module' }
+   // name: "openclaw" 必须保留 — resolveOpenClawPackageRootSync 通过遍历祖先目录的
+   // package.json 查找 name === "openclaw" 来定位 OpenClaw 包根目录。
+   // 缺少此字段会导致 OPENCLAW_PACKAGE_ROOT 解析到错误目录，
+   // 进而找不到 dist/extensions/ 下的 channel metadata。
+   const finalPkg: Record<string, unknown> = { name: 'openclaw', type: 'module' }
    if (openclawVersion) finalPkg.version = openclawVersion
    writeFileSync(pkgJson, JSON.stringify(finalPkg, null, 2) + '\n')
 
