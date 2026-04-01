@@ -2,10 +2,10 @@
 
 OpenClaw 的跨平台桌面客户端，提供内置 Gateway 管理、引导向导、聊天对话及全功能管理面板。
 
-> **内置 OpenClaw Gateway v2026.3.28（最新版）** — 开箱即用，无需单独安装 OpenClaw。
+> **内置 OpenClaw Gateway v2026.3.31（最新版）** — 开箱即用，无需单独安装 OpenClaw。
 
 ![Version](https://img.shields.io/badge/version-0.0.5-blue)
-![OpenClaw](https://img.shields.io/badge/OpenClaw-v2026.3.28_(Latest)-brightgreen?style=flat&logo=data:image/svg+xml;base64,)
+![OpenClaw](https://img.shields.io/badge/OpenClaw-v2026.3.31_(Latest)-brightgreen?style=flat&logo=data:image/svg+xml;base64,)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 ![Electron](https://img.shields.io/badge/Electron-40-47848F?logo=electron)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
@@ -198,7 +198,7 @@ ClawUI/
 | UI 组件 | @agentscope-ai/chat, @agentscope-ai/design, antd 6 | - |
 | 图表 | @ant-design/charts | 2.x |
 | WebSocket | ws | 8.x |
-| 后端 Gateway | OpenClaw | **v2026.3.28（最新版）** |
+| 后端 Gateway | OpenClaw | **v2026.3.31（最新版）** |
 
 ## 参与贡献
 
